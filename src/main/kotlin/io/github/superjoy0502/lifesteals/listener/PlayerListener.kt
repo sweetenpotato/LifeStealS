@@ -3,10 +3,7 @@ package io.github.superjoy0502.lifesteals.listener
 import io.github.monun.heartbeat.coroutines.HeartbeatScope
 import io.github.monun.heartbeat.coroutines.Suspension
 import io.github.superjoy0502.lifesteals.math.PlayerSpawner
-import io.github.superjoy0502.lifesteals.plugin.LifeStealPlugin
-import io.github.superjoy0502.lifesteals.plugin.addHeart
-import io.github.superjoy0502.lifesteals.plugin.deathChest
-import io.github.superjoy0502.lifesteals.plugin.removeHeart
+import io.github.superjoy0502.lifesteals.plugin.*
 import kotlinx.coroutines.launch
 import org.bukkit.ChatColor
 import org.bukkit.GameMode
@@ -51,7 +48,7 @@ class PlayerListener(private val plugin: LifeStealPlugin) : Listener {
                     "${ChatColor.WHITE}[${ChatColor.AQUA}Info${ChatColor.WHITE}] 현재 진행되고 있는 체력 약탈 야생 게임이 종료되지 않았습니다."
                 )
                 player.sendMessage(
-                    "${ChatColor.WHITE}[${ChatColor.AQUA}Info${ChatColor.WHITE}] 게임이 종료될 때까지 기다리거나, /quit을 입력해 현재 참가 중인 게임에서 나갈 수 있습니다."
+                    "${ChatColor.WHITE}[${ChatColor.AQUA}Info${ChatColor.WHITE}] 게임이 종료될 때까지 기다리거나, /quit를 입력해 현재 참가 중인 게임에서 나갈 수 있습니다."
                 )
             }
             else {
@@ -110,7 +107,6 @@ class PlayerListener(private val plugin: LifeStealPlugin) : Listener {
         val victim = event.player
         val killer = victim.killer
         val deathReason = victim.lastDamageCause
-        val location = victim.location.clone()
         val inventory = victim.inventory
 
         if (victim in plugin.survivorList) {  // 플레이어가 생존자 리스트에 존재하는 경우
@@ -118,7 +114,8 @@ class PlayerListener(private val plugin: LifeStealPlugin) : Listener {
             for (sender in plugin.participantList) {
                 sender.sendMessage("${ChatColor.WHITE}[${ChatColor.AQUA}Info${ChatColor.WHITE}] ${ChatColor.DARK_RED}사람이 죽었다.")
             }
-            if (killer != null) {
+
+            if (killer != null) { // 플레이어가 죽인 경우
                 if (victim != killer) { // 플레이어가 다른 플레이어에게 사망한 경우
                     val increaseRate = victim.removeHeart(plugin.lifeStealValue, plugin)
                     if (victim !in plugin.survivorList) { // 이번 죽음으로 인에 게임에서 탈락한 경우
@@ -126,126 +123,69 @@ class PlayerListener(private val plugin: LifeStealPlugin) : Listener {
                             sender.sendMessage("${ChatColor.WHITE}[${ChatColor.AQUA}Info${ChatColor.WHITE}] ${ChatColor.YELLOW}" + victim.toString() + "${ChatColor.RED}님께서 게임에서 탈락하셨습니다.")
                             sender.sendMessage("${ChatColor.WHITE}[${ChatColor.AQUA}Info${ChatColor.WHITE}] 남은 인원 : " + plugin.survivorList.size.toString() + "/" + plugin.participantList.size.toString())
                         }
-                        victim.deathChest(victim.location, plugin)
+                        victim.deathChest(victim.location.clone(), plugin)
                     }
+                    /* TODO
+                         - 황금 사과 등등 아이템 드랍해야 함
+                     */
                     killer.addHeart(increaseRate, plugin)
                 }
                 else { // 플레이어가 스스로 사망한 경우
                     if (victim !in plugin.survivorList) {
-                        for (item in inventory) {
-                            if (item != null) {
-                                location.world.dropItemNaturally(location, item.clone())
+                        victim.removeHeartHalf(plugin)
+                        if (victim !in plugin.survivorList) {
+                            for (sender in plugin.participantList) {
+                                sender.sendMessage("${ChatColor.WHITE}[${ChatColor.AQUA}Info${ChatColor.WHITE}] ${ChatColor.YELLOW}" + victim.toString() + "${ChatColor.RED}님께서 게임에서 탈락하셨습니다.")
+                                sender.sendMessage("${ChatColor.WHITE}[${ChatColor.AQUA}Info${ChatColor.WHITE}] 남은 인원 : " + plugin.survivorList.size.toString() + "/" + plugin.participantList.size.toString())
                             }
                         }
-                        victim.inventory.clear()
+                        victim.deathChest(victim.location.clone(), plugin)
                     }
                 }
             }
-            else { // 플레이어가 다른 엔티티에 의해 사망한 경우
-                if (deathReason is EntityDamageByEntityEvent) {
+            else { // 플레이어가 다른 이유로 사망한 경우
+                if (deathReason is EntityDamageByEntityEvent) { // 플레이어가 몹에게 죽은 경우
                     if (deathReason.damager is Mob) {
                         victim.removeHeart(plugin.lifeStealValue, plugin)
                         if (victim !in plugin.survivorList) { // 플레이어가 이번 죽음으로 인해 아예 탈락한 경우
-                            deathChest(victim, location, plugin)
-                            victim.inventory.clear()
+                            for (sender in plugin.participantList) {
+                                sender.sendMessage("${ChatColor.WHITE}[${ChatColor.AQUA}Info${ChatColor.WHITE}] ${ChatColor.YELLOW}" + victim.toString() + "${ChatColor.RED}님께서 게임에서 탈락하셨습니다.")
+                                sender.sendMessage("${ChatColor.WHITE}[${ChatColor.AQUA}Info${ChatColor.WHITE}] 남은 인원 : " + plugin.survivorList.size.toString() + "/" + plugin.participantList.size.toString())
+                            }
                         }
-                        else {
-                            val barrelLocation = ArrayList<Location>() // 플레이어가 죽은 위치에 생성될 통 위치
-                            var rawLocation = location.clone()
-
-                            if (ceil(rawLocation.y) >= 320.0) rawLocation.y = 319.0
-                            else if (ceil(rawLocation.y) <=)
-                            else rawLocation.y = ceil(rawLocation.y)
-                            barrelLocation.add(rawLocation)
-                            barrelLocation.
-                            val playerItemList = ArrayList<ItemStack>()
-                            for (i in victim.inventory.contents) {
-                                if (i != null) {
-                                    playerItemList.add(i)
+                        victim.deathChest(victim.location.clone(), plugin)
+                    }
+                    else if (deathReason.damager is AbstractArrow) {
+                        val arrow = deathReason.damager as AbstractArrow
+                        if (arrow.shooter is AbstractArrow || arrow.shooter is Drowned) {
+                            victim.removeHeart(plugin.lifeStealValue, plugin)
+                            if (victim !in plugin.survivorList) { // 플레이어가 이번 죽음으로 인해 아예 탈락한 경우
+                                for (sender in plugin.participantList) {
+                                    sender.sendMessage("${ChatColor.WHITE}[${ChatColor.AQUA}Info${ChatColor.WHITE}] ${ChatColor.YELLOW}" + victim.toString() + "${ChatColor.RED}님께서 게임에서 탈락하셨습니다.")
+                                    sender.sendMessage("${ChatColor.WHITE}[${ChatColor.AQUA}Info${ChatColor.WHITE}] 남은 인원 : " + plugin.survivorList.size.toString() + "/" + plugin.participantList.size.toString())
                                 }
                             }
-                            for (i in victim.getInventory().getArmorContents()) {
-                                if (i != null) {
-                                    playerItemList.add(i)
-                                }
-                            }
-                            if (playerItemList.size > 27) {
-                                val barrel = barrelLocation.block.setType(Material.BARREL)
-                                barrel.
-                            }
-                            victim.getLocation().getBlock().setType(Material.BARREL)
-                            val chest: Barrel = victim.getLocation().getBlock().getState() as Barrel
-                            victim.inventory.clear()
+                            victim.deathChest(victim.location.clone(), plugin)
                         }
                     }
+                    /* TODO
+                        - 가스트의 화염구로 인해 사망한 경우
+                        - 위더 스컬로 인해 사망한 경우
+                        - 엔더 드래곤의 발사체로 인해 사망한 경우
+                        - 마녀의 물약으로 인해 사망한 경우
+                     */
                 }
-            }
-        }
-
-        if (killer == null) {
-
-            if (deathReason is EntityDamageByEntityEvent) {
-
-                if (deathReason.damager is Mob) { // 몬스터에 의해 사망한 경우
-
-//                    println("MONSTER Removing ${plugin.lifeStealValue.toDouble()} health from ${victim.name}")
-                    victim.removeHeart(plugin.lifeStealValue.toDouble(), plugin)
-                    return
-
-                }
-                else if (deathReason.damager is AbstractArrow) { // 화살에 의해 사망한 경우
-
-                    val arrow = deathReason.damager as Arrow
-                    if (arrow.shooter is AbstractSkeleton || arrow.shooter is Drowned) {
-
-                        victim.removeHeart(plugin.lifeStealValue.toDouble(), plugin)
-                        return
-
+                else {
+                    victim.removeHeartHalf(plugin)
+                    if (victim !in plugin.survivorList) { // 플레이어가 이번 죽음으로 인해 아예 탈락한 경우
+                        for (sender in plugin.participantList) {
+                            sender.sendMessage("${ChatColor.WHITE}[${ChatColor.AQUA}Info${ChatColor.WHITE}] ${ChatColor.YELLOW}" + victim.toString() + "${ChatColor.RED}님께서 게임에서 탈락하셨습니다.")
+                            sender.sendMessage("${ChatColor.WHITE}[${ChatColor.AQUA}Info${ChatColor.WHITE}] 남은 인원 : " + plugin.survivorList.size.toString() + "/" + plugin.participantList.size.toString())
+                        }
                     }
-
+                    victim.deathChest(victim.location.clone(), plugin)
                 }
-
-                else if (deathReason.damager is Trident){
-
-                    val trident = deathReason.damager as Trident
-                    if (trident.shooter is Drowned) {
-
-                        victim.removeHeart(plugin.lifeStealValue.toDouble(), plugin)
-                        return
-                    }
-                }
-
             }
-
-        } else { // 플레이어에 의해 사망한 경우
-
-            if (victim != killer) {
-
-//                println("PLAYER Removing ${plugin.lifeStealValue.toDouble()} health from ${victim.name}")
-                victim.removeHeart(plugin.lifeStealValue.toDouble(), plugin)
-                val attribute = killer.getAttribute(Attribute.GENERIC_MAX_HEALTH)
-                if (attribute != null) {
-
-                    attribute.baseValue = attribute.baseValue + plugin.lifeStealValue
-
-                }
-
-                return
-
-            }
-
-        }
-        // 기타
-        val attribute = victim.getAttribute(Attribute.GENERIC_MAX_HEALTH)
-        if (attribute != null) {
-
-            var value = attribute.baseValue / 2
-            if (value.toInt() % 2 == 1) value += 1
-//            println("ELSE ${event.deathMessage()}")
-            victim.removeHeart(value, plugin)
-
-            return
-
         }
 
     }
@@ -348,6 +288,7 @@ class PlayerListener(private val plugin: LifeStealPlugin) : Listener {
 
         event.isCancelled = true
         event.player.sendMessage("${ChatColor.RED}어디서 주무시려고")
+        event.player.bedSpawnLocation
         
     }
 
